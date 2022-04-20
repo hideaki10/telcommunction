@@ -1,1 +1,4 @@
-*.code-workspace
+./telcommunction.code-workspace
+./go.mod
+./go.sum
+arp/
