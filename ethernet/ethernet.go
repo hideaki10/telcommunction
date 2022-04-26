@@ -1,23 +1,23 @@
-package main
+package ethernet
 
-type ethernet struct {
-	destination []byte
-	source      []byte
-	ethtype     []byte
+type Ethernet struct {
+	Destination []byte
+	Source      []byte
+	Ethtype     []byte
 }
 
-func NewEthernet(destinationMacAddr, sourceMacAddr []byte, ethType string) *ethernet {
+func NewEthernet(destinationMacAddr, sourceMacAddr []byte, ethType string) Ethernet {
 
-	ethernet := &ethernet{
-		destination: destinationMacAddr,
-		source:      sourceMacAddr,
+	ethernet := Ethernet{
+		Destination: destinationMacAddr,
+		Source:      sourceMacAddr,
 	}
 
 	switch ethType {
 	case "IPv4":
-		ethernet.ethtype = []byte{0x08, 0x00}
+		ethernet.Ethtype = []byte{0x08, 0x00}
 	case "ARP":
-		ethernet.ethtype = []byte{0x08, 0x06}
+		ethernet.Ethtype = []byte{0x08, 0x06}
 	}
 
 	return ethernet

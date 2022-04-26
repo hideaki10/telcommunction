@@ -3,5 +3,7 @@ package main
 import "telcommunction/arp"
 
 func main() {
-	arp.GetLocalAddress()
+	// utils.GetLocalAddress()
+
+	arp.ArpProtcol()
 }

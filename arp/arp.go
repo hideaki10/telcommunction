@@ -4,21 +4,21 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"strings"
 	"syscall"
+	"telcommunction/ethernet"
+	"telcommunction/utils"
 )
 
-type arp struct {
-	hardwareType          []byte
-	protcolType           []byte
-	hardwareAddressLength []byte
-	protcolAddressLength  []byte
-	operation             []byte
-	senderMacAddress      []byte
-	senderIpAddress       []byte
-	targetMacAddress      []byte
-	targetIpAddress       []byte
+type Arp struct {
+	HardwareType          []byte
+	ProtcolType           []byte
+	HardwareAddressLength []byte
+	ProtcolAddressLength  []byte
+	Operation             []byte
+	SenderMacAddress      []byte
+	SenderIpAddress       []byte
+	TargetMacAddress      []byte
+	TargetIpAddress       []byte
 }
 
 // host order to network order
@@ -37,40 +37,41 @@ func htons(host uint16) uint16 {
 	return (host<<8)&0xff00 | host>>8
 }
 
-func NewArpRequest(localMacAddress, localIPAddress, targetIpAddress []byte) *arp {
+func NewArpRequest(localMacAddress, localIPAddress, targetIpAddress []byte) Arp {
 
-	arp := &arp{
+	arp := Arp{
 
 		//ethernet 0x0001
-		hardwareType: []byte{0x00, 0x01},
+		HardwareType: []byte{0x00, 0x01},
 
 		// ip 0x0800
-		protcolType: []byte{0x08, 0x00},
+		ProtcolType: []byte{0x08, 0x00},
 
 		// 0x06
-		hardwareAddressLength: []byte{0x06},
+		HardwareAddressLength: []byte{0x06},
 
 		// 0x04
-		protcolAddressLength: []byte{0x04},
+		ProtcolAddressLength: []byte{0x04},
 
 		// arp request 0x0001 arp replay 0x0002
-		operation: []byte{0x00, 0x01},
+		Operation: []byte{0x00, 0x01},
 
 		//
 
-		senderMacAddress: localMacAddress,
-		senderIpAddress:  localIPAddress,
+		SenderMacAddress: localMacAddress,
+		SenderIpAddress:  localIPAddress,
 
-		// mac address -> 00-00-00-00-00-00-00-00
-		targetMacAddress: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+		//
+		//  brodercast
+		TargetMacAddress: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 
-		targetIpAddress: targetIpAddress,
+		TargetIpAddress: targetIpAddress,
 	}
 	return arp
 
 }
 
-func (arp *arp) send(ifindex int, packet []byte) arp {
+func (arp Arp) send(ifindex int, packet []byte) Arp {
 
 	// syscall.ARPHARD_ETHER -> ethernet
 	addr := syscall.SockaddrLinklayer{
@@ -102,79 +103,55 @@ func (arp *arp) send(ifindex int, packet []byte) arp {
 	for {
 		recvBuf := make([]byte, 80)
 		// recvform
+		// recvform open the socket fd reads and store the data in buf
+		// recvfrom() places the received message into the buffer buf.  The caller must specify the size of the buffer in len.
 		//
+		// flags is formed by ORing one or other
+		// https://man7.org/linux/man-pages/man2/recv.2.html
 		_, _, err := syscall.Recvfrom(fd, recvBuf, 0)
 		if err != nil {
 			log.Fatalln("read err ")
 		}
 
-		return parseArpPacket(recvBuf)
-	}
-
-}
-
-func parseArpPacket(packet []byte) arp {
-	return arp{
-		hardwareType:          []byte{packet[0], packet[1]},
-		protcolType:           []byte{packet[2], packet[3]},
-		hardwareAddressLength: []byte{packet[4]},
-		protcolAddressLength:  []byte{packet[5]},
-		operation:             []byte{packet[6], packet[7]},
-		senderMacAddress:      []byte{packet[8], packet[9], packet[10], packet[11], packet[12], packet[13]},
-		senderIpAddress:       []byte{packet[14], packet[15], packet[16], packet[17]},
-		targetMacAddress:      []byte{packet[18], packet[19], packet[20], packet[21], packet[22], packet[23]},
-		targetIpAddress:       []byte{packet[24], packet[25], packet[26], packet[27]},
-	}
-}
-
-func arpProtocol() {
-
-}
-
-func GetLocalAddress() {
-	addres, err := net.InterfaceAddrs()
-	if err != nil {
-		log.Fatalln("get local address is failed")
-	}
-
-	var currentIP, currentNetworkHardwareName string
-
-	for _, addr := range addres {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				fmt.Println("Current IP address : ", ipnet.IP.String())
-				currentIP = ipnet.IP.String()
+		fmt.Println(recvBuf)
+		if recvBuf[12] == 0x08 && recvBuf[13] == 0x06 {
+			if recvBuf[20] == 0x00 && recvBuf[21] == 0x02 {
+				return parseArpPacket(recvBuf[14:])
 			}
 		}
+
 	}
 
-	interfaces, _ := net.Interfaces()
-	for _, interf := range interfaces {
-		addrs, err := interf.Addrs()
-		if err != nil {
-			log.Fatalln("get address is failed")
-		}
-		for _, adr := range addrs {
-			if strings.Contains(adr.String(), currentIP) {
-				currentNetworkHardwareName = interf.Name
-			}
-		}
+}
+
+func parseArpPacket(packet []byte) Arp {
+	return Arp{
+		HardwareType:          []byte{packet[0], packet[1]},
+		ProtcolType:           []byte{packet[2], packet[3]},
+		HardwareAddressLength: []byte{packet[4]},
+		ProtcolAddressLength:  []byte{packet[5]},
+		Operation:             []byte{packet[6], packet[7]},
+		SenderMacAddress:      []byte{packet[8], packet[9], packet[10], packet[11], packet[12], packet[13]},
+		SenderIpAddress:       []byte{packet[14], packet[15], packet[16], packet[17]},
+		TargetMacAddress:      []byte{packet[18], packet[19], packet[20], packet[21], packet[22], packet[23]},
+		TargetIpAddress:       []byte{packet[24], packet[25], packet[26], packet[27]},
 	}
+}
 
-	netInterface, err := net.InterfaceByName(currentNetworkHardwareName)
-	if err != nil {
-		log.Fatalln(err)
-	}
+func ArpProtcol() {
+	currentIpaddress, currentMacAddress := utils.GetLocalAddress()
+	ethernet := ethernet.NewEthernet([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, currentMacAddress, "ARP")
 
-	name := netInterface.Name
-	macAddress := netInterface.HardwareAddr
+	targetIpAddress := net.ParseIP("192.168.3.16")
 
-	hwAddr, err := net.ParseMAC(macAddress.String())
-	if err != nil {
-		fmt.Println("No able to parse MAC address :", err)
-		os.Exit(1)
-	}
+	arpRequest := NewArpRequest(currentMacAddress, currentIpaddress, targetIpAddress)
 
-	fmt.Printf("Physical hardware address : %s , %s \n", name, hwAddr.String())
+	var sendArp []byte
 
+	sendArp = append(sendArp, utils.ToByteArr(ethernet)...)
+	sendArp = append(sendArp, utils.ToByteArr(arpRequest)...)
+	netI, _ := net.InterfaceByName("ens33")
+	index := netI.Index
+	arpreply := arpRequest.send(index, sendArp)
+	fmt.Printf("ARP Reply :%s\n", arpreply.SenderMacAddress)
 }
