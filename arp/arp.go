@@ -71,7 +71,7 @@ func NewArpRequest(localMacAddress, localIPAddress, targetIpAddress []byte) Arp 
 
 }
 
-func (arp Arp) send(ifindex int, packet []byte) Arp {
+func (arp *Arp) send(ifindex int, packet []byte) Arp {
 
 	// syscall.ARPHARD_ETHER -> ethernet
 	addr := syscall.SockaddrLinklayer{
@@ -90,7 +90,7 @@ func (arp Arp) send(ifindex int, packet []byte) Arp {
 	// https://man7.org/linux/man-pages/man7/packet.7.html
 	fd, err := syscall.Socket(syscall.AF_PACKET, syscall.SOCK_RAW, int(htons(syscall.ETH_P_ALL)))
 	if err != nil {
-		log.Fatalln("create socket is failed ")
+		log.Fatalln("create syscall.socket is failed")
 	}
 
 	defer syscall.Close(fd)
@@ -141,8 +141,7 @@ func parseArpPacket(packet []byte) Arp {
 func ArpProtcol() {
 	currentIpaddress, currentMacAddress := utils.GetLocalAddress()
 	ethernet := ethernet.NewEthernet([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff}, currentMacAddress, "ARP")
-
-	targetIpAddress := net.ParseIP("192.168.3.16")
+	targetIpAddress := net.ParseIP("192.168.3.36")
 
 	arpRequest := NewArpRequest(currentMacAddress, currentIpaddress, targetIpAddress)
 
